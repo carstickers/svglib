@@ -1883,7 +1883,7 @@ class Svg2RlgShapeConverter(SvgShapeConverter):
         nudge_points(points)
         return Line(*points)
 
-    def convertRect(self, node: Any) -> Optional[Rect]:
+    def convertRect(self, node: Any) -> Optional[Union[Rect, Path]]:
         """Convert an SVG <rect> element to a ReportLab Rect."""
         x, y, width, height, rx, ry = self.convert_length_attrs(
             node, "x", "y", "width", "height", "rx", "ry"
@@ -1896,6 +1896,9 @@ class Svg2RlgShapeConverter(SvgShapeConverter):
             ry = rx
         elif ry and not rx:
             rx = ry
+
+        if rx or ry:
+            return self.convertRectPath(node)
 
         return Rect(x, y, width, height, rx=rx, ry=ry)
     
