@@ -2395,7 +2395,7 @@ class Svg2RlgShapeConverter(SvgShapeConverter):
             (
                 ["font-size"],
                 "fontSize",
-                "convertLengthToPt",
+                "convertLength",
                 [f"{DEFAULT_FONT_SIZE}pt"],
             ),
             (["text-anchor"], "textAnchor", "id", ["start"]),
