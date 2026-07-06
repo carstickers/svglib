@@ -87,6 +87,9 @@ def svg_raster_difference(svg: str, raster: str, scale=1, tolerance=3) -> float:
                     if squared_distance > squared_tolerance:
                         incorrect_pixels += 1
 
-    os.unlink(svg_raster_path)
+    if (incorrect_pixels / max_pixels) * 100 != 0:
+        print(svg_raster_path)
+    else:
+        os.unlink(svg_raster_path)
 
     return (incorrect_pixels / max_pixels) * 100

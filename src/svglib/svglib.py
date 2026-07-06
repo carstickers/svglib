@@ -1329,15 +1329,16 @@ class SvgRenderer:
             A ClippingPath object, or None if no valid clipping path is found.
         """
 
-        def get_shape_from_group(group: Any) -> Optional[Any]:
+        def get_shape_from_group(group: Any, nodes) -> Optional[Any]:
             for elem in group.contents:
                 if isinstance(elem, Group):
-                    return get_shape_from_group(elem)
+                    get_shape_from_group(elem, nodes)
                 elif isinstance(elem, SolidShape):
-                    return self.shape_converter.shapeToPath(elem, group.transform)
-            return None
+                    nodes.append(
+                        self.shape_converter.shapeToPath(elem, group.transform)
+                    )
 
-        def get_shape_from_node(node: Any) -> Optional[Any]:
+        def get_shape_from_node(node: Any, nodes) -> Optional[Any]:
             for child in node.iter_children():
                 child_name = node_name(child)
                 valid_nodes = ["path", "rect", "circle", "ellipse", "polygon"]
@@ -1346,19 +1347,17 @@ class SvgRenderer:
 
                     # The transform will be applied in the get_shape_from_group
                     if isinstance(item, Group):
-                        return get_shape_from_group(item)
-
-                    return self.shape_converter.shapeToPath(
-                        item,
-                        child.getAttribute("transform"),
-                    )
-
+                        get_shape_from_group(item, nodes)
+                    else:
+                        nodes.append(self.shape_converter.shapeToPath(
+                            item,
+                            child.getAttribute("transform"),
+                        ))
                 elif child_name == "use":
                     grp = self.renderUse(child)
-                    return get_shape_from_group(grp)
+                    get_shape_from_group(grp, nodes)
                 else:
-                    return get_shape_from_node(child)
-            return None
+                    return get_shape_from_node(child, nodes)
 
         clip_path = node.getAttribute("clip-path")
         if not clip_path:
@@ -1371,14 +1370,18 @@ class SvgRenderer:
             logger.warning("Unable to find a clipping path with id %s", ref)
             return None
 
-        shape = get_shape_from_node(self.definitions[ref])
-        if shape and isinstance(shape, Path):
-            return ClippingPath(copy_from=shape)
-        elif shape:
-            logger.error(
-                "Unsupported shape type %s for clipping", shape.__class__.__name__
-            )
-        return None
+        shapes = []
+        get_shape_from_node(self.definitions[ref], shapes)
+
+        clipping_paths = []
+        for shape in shapes:
+            if shape and isinstance(shape, Path):
+                clipping_paths.append(ClippingPath(copy_from=shape))
+            elif shape:
+                logger.error(
+                    "Unsupported shape type %s for clipping", shape.__class__.__name__
+                )
+        return clipping_paths
 
     def print_unused_attributes(self, node: NodeTracker) -> None:
         """Print any attributes that were not used during rendering.

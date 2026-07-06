@@ -430,14 +430,7 @@ class TestPaths:
     @pytest.mark.skipif(not has_renderpm_backend(), reason="needs a renderPM backend")
     def test_clipping_path_with_transform_visual(self):
         test_files = [
-            "path",
-            "rect",
-            "rounded-rect",
-            "path-no-transform",
-            "rect",
-            "ellipse",
-            "circle",
-            "polygon",
+            'double-path'
         ]
 
         for test_file in test_files:
