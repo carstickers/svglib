@@ -437,6 +437,10 @@ class TestPaths:
             "ellipse",
             "circle",
             "polygon",
+            "double-path",
+            "overlapping-double-path",
+            "overlapping-double-path-inset",
+            "multi-path-fill-rule",
         ]
 
         for test_file in test_files:

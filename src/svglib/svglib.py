@@ -1328,14 +1328,15 @@ class SvgRenderer:
         Returns:
             A ClippingPath object, or None if no valid clipping path is found.
         """
-
+        shapes = []
         def get_shape_from_group(group: Any) -> Optional[Any]:
             for elem in group.contents:
                 if isinstance(elem, Group):
-                    return get_shape_from_group(elem)
+                    get_shape_from_group(elem)
                 elif isinstance(elem, SolidShape):
-                    return self.shape_converter.shapeToPath(elem, group.transform)
-            return None
+                    shapes.append(self.shape_converter.shapeToPath(
+                        elem, group.transform
+                    ))
 
         def get_shape_from_node(node: Any) -> Optional[Any]:
             for child in node.iter_children():
@@ -1346,16 +1347,15 @@ class SvgRenderer:
 
                     # The transform will be applied in the get_shape_from_group
                     if isinstance(item, Group):
-                        return get_shape_from_group(item)
-
-                    return self.shape_converter.shapeToPath(item, None)
+                        get_shape_from_group(item)
+                    else:
+                        shapes.append(self.shape_converter.shapeToPath(item, None))
 
                 elif child_name == "use":
                     grp = self.renderUse(child)
-                    return get_shape_from_group(grp)
+                    get_shape_from_group(grp)
                 else:
-                    return get_shape_from_node(child)
-            return None
+                    get_shape_from_node(child)
 
         clip_path = node.getAttribute("clip-path")
         if not clip_path:
@@ -1368,7 +1368,15 @@ class SvgRenderer:
             logger.warning("Unable to find a clipping path with id %s", ref)
             return None
 
-        shape = get_shape_from_node(self.definitions[ref])
+        get_shape_from_node(self.definitions[ref])
+        if len(shapes) == 0:
+            return None
+
+        shape = shapes[0]
+        for other in shapes[1:]:
+            shape.points = [*shape.points, *other.points]
+            shape.operators = [*shape.operators, *other.operators]
+
         if shape and isinstance(shape, Path):
             return ClippingPath(copy_from=shape)
         elif shape:
