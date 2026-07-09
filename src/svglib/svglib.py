@@ -2367,6 +2367,21 @@ class Svg2RlgShapeConverter(SvgShapeConverter):
             node, "x", "y", "width", "height"
         )
         image = node._resolved_target
+
+        # If the width and/or height were not set then the image size
+        # needs to be used as a fallback
+        if (not width or not height) and image and image.size:
+            image_width, image_height = image.size
+
+            if image_width and image_height:
+                if width and not height:
+                    height = width * image_height / image_width
+                elif height and not width:
+                    width = height * image_width / image_height
+                else:
+                    width = image_width
+                    height = image_height
+
         image = Image(int(x), int(y + height), int(width), int(height), image)
 
         group = Group(image)
@@ -2662,7 +2677,7 @@ class Svg2RlgShapeConverter(SvgShapeConverter):
             # Unsupported shape conversion
             return None
 
-        # Copy over fill rule
+        # Preserve fill rule and other shape properties
         copy_shape_properties(shape, path)
 
         # Bake in the transform so it can be used with clipping paths
