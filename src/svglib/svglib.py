@@ -1450,17 +1450,17 @@ class SvgRenderer:
         """
         shapes = []
 
-        def get_shape_from_group(group: Any) -> Optional[Any]:
+        def find_shapes_from_group(group: Any) -> Optional[Any]:
             """Return the first drawable shape found within a group, recursively."""
             for elem in group.contents:
                 if isinstance(elem, Group):
-                    get_shape_from_group(elem)
+                    find_shapes_from_group(elem)
                 elif isinstance(elem, SolidShape):
                     shapes.append(
                         self.shape_converter.shapeToPath(elem, group.transform)
                     )
 
-        def get_shape_from_node(node: Any) -> Optional[Any]:
+        def find_shapes_from_node(node: Any) -> Optional[Any]:
             """Return the shape converted from the first supported child node."""
             for child in node.iter_children():
                 child_name = node_name(child)
@@ -1470,15 +1470,15 @@ class SvgRenderer:
 
                     # The transform will be applied in the get_shape_from_group
                     if isinstance(item, Group):
-                        get_shape_from_group(item)
+                        find_shapes_from_group(item)
                     else:
                         shapes.append(self.shape_converter.shapeToPath(item, None))
 
                 elif child_name == "use":
                     grp = self.renderUse(child)
-                    get_shape_from_group(grp)
+                    find_shapes_from_group(grp)
                 else:
-                    get_shape_from_node(child)
+                    find_shapes_from_node(child)
 
         clip_path = node.getAttribute("clip-path")
         if not clip_path:
@@ -1491,7 +1491,7 @@ class SvgRenderer:
             logger.warning("Unable to find a clipping path with id %s", ref)
             return None
 
-        get_shape_from_node(self.definitions[ref])
+        find_shapes_from_node(self.definitions[ref])
         if len(shapes) == 0:
             return None
 
