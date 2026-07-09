@@ -483,6 +483,18 @@ class TestPaths:
 
             assert svg_raster_difference(svg, raster, 4 / 3) == 0
 
+    @pytest.mark.xfail(reason="Mixed fill rule clipping paths are not supported")
+    def test_mixed_fill_rules(self):
+        test_files = [
+            "mixed-fill-rule",
+        ]
+
+        for test_file in test_files:
+            svg = f"clipping/{test_file}.svg"
+            raster = f"clipping/{test_file}.png"
+
+            assert svg_raster_difference(svg, raster, 4 / 3) == 0
+
 
 def force_cmyk(rgb: Any) -> Any:
     c, m, y, k = colors.rgb2cmyk(rgb.red, rgb.green, rgb.blue)

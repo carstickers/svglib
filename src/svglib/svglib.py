@@ -1449,15 +1449,16 @@ class SvgRenderer:
             A ClippingPath object, or None if no valid clipping path is found.
         """
         shapes = []
+
         def get_shape_from_group(group: Any) -> Optional[Any]:
             """Return the first drawable shape found within a group, recursively."""
             for elem in group.contents:
                 if isinstance(elem, Group):
                     get_shape_from_group(elem)
                 elif isinstance(elem, SolidShape):
-                    shapes.append(self.shape_converter.shapeToPath(
-                        elem, group.transform
-                    ))
+                    shapes.append(
+                        self.shape_converter.shapeToPath(elem, group.transform)
+                    )
 
         def get_shape_from_node(node: Any) -> Optional[Any]:
             """Return the shape converted from the first supported child node."""
@@ -1498,6 +1499,11 @@ class SvgRenderer:
         for other in shapes[1:]:
             shape.points = [*shape.points, *other.points]
             shape.operators = [*shape.operators, *other.operators]
+
+            if shape.fillMode != other.fillMode:
+                logger.warning(
+                    "Mixed fill modes within a single clipping path is not supported."
+                )
 
         if shape and isinstance(shape, Path):
             return ClippingPath(copy_from=shape)
