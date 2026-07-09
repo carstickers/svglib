@@ -1353,6 +1353,47 @@ class TestSwitchNode:
         assert len(rects) == 1
         assert rects[0].fillColor.hexval() == "0x0000ff"
 
+    def test_switch_matches_system_language(self, monkeypatch):
+        """<switch> renders the first child whose systemLanguage matches the locale."""
+        for var in ("LC_ALL", "LC_CTYPE", "LANGUAGE"):
+            monkeypatch.delenv(var, raising=False)
+        monkeypatch.setenv("LANG", "de_DE.UTF-8")
+        drawing = drawing_from_svg(
+            """
+            <?xml version="1.0"?>
+            <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+                <switch>
+                    <rect systemLanguage="fr" width="100" height="100" fill="red"/>
+                    <rect systemLanguage="de" width="80" height="80" fill="green"/>
+                    <rect width="50" height="50" fill="blue"/>
+                </switch>
+            </svg>
+        """
+        )
+        rects = self._find_rects(drawing)
+        assert len(rects) == 1
+        assert rects[0].fillColor.hexval() == "0x008000"  # "de" matches "de_DE"
+
+    def test_switch_skips_nonmatching_system_language(self, monkeypatch):
+        """<switch> skips a non-matching systemLanguage and renders the fallback."""
+        for var in ("LC_ALL", "LC_CTYPE", "LANGUAGE"):
+            monkeypatch.delenv(var, raising=False)
+        monkeypatch.setenv("LANG", "en_US.UTF-8")
+        drawing = drawing_from_svg(
+            """
+            <?xml version="1.0"?>
+            <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+                <switch>
+                    <rect systemLanguage="fr" width="100" height="100" fill="red"/>
+                    <rect width="50" height="50" fill="blue"/>
+                </switch>
+            </svg>
+        """
+        )
+        rects = self._find_rects(drawing)
+        assert len(rects) == 1
+        assert rects[0].fillColor.hexval() == "0x0000ff"  # "fr" skipped, fallback used
+
 
 class TestSymbolNode:
     def test_symbol_unused(self):
@@ -1679,6 +1720,10 @@ class TestGradients:
         groups = self._find_groups(drawing)
         # The rect's fill must have been replaced by a gradient group
         assert len(groups) > 1
+        # The gradient shape must implement getBounds() so the drawing can be
+        # measured (e.g. when used as a flowable by rst2pdf); see issue #466.
+        x0, y0, x1, y1 = drawing.getBounds()
+        assert x1 > x0 and y1 > y0
 
     def test_radial_gradient_circle(self):
         """A circle with a radialGradient fill must produce a Group."""
@@ -1699,6 +1744,9 @@ class TestGradients:
         )
         groups = self._find_groups(drawing)
         assert len(groups) > 1
+        # See issue #466: the gradient shape must implement getBounds().
+        x0, y0, x1, y1 = drawing.getBounds()
+        assert x1 > x0 and y1 > y0
 
     def test_gradient_stops_parsed(self):
         """Stop colors and offsets must be correctly stored in gradient_defs."""
