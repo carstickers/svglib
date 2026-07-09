@@ -1,16 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 200 90" width="200" height="90">
-    <!--
-        The second start should normally render with a hole in the middle.
-        But when it is put into a clip path that seems to be ignored.
-        See MDN fill rule example #1.
-    -->
     <defs>
         <clipPath id="clip-1">
             <polygon
-                fill-rule="evenodd"
+                clip-rule="evenodd"
                 points="150,0 121,90 198,35 102,35 179,90" />
             <polygon
-                fill-rule="nonzero"
+                clip-rule="nonzero"
                 points="50,0 21,90 98,35 2,35 79,90" />
         </clipPath>
     </defs>
