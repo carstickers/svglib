@@ -21,6 +21,7 @@ from reportlab.graphics.shapes import (
     _LINETO,
     _MOVETO,
     Group,
+    Image,
     Line,
     Path,
     Polygon,
@@ -29,7 +30,7 @@ from reportlab.graphics.shapes import (
 )
 from reportlab.lib import colors
 from reportlab.lib.units import cm, inch
-from reportlab.pdfgen.canvas import FILL_EVEN_ODD
+from reportlab.pdfgen.canvas import FILL_EVEN_ODD, FILL_NON_ZERO
 
 from svglib import svglib, utils
 from svglib.svglib import ClippingPath
@@ -383,6 +384,7 @@ class TestPaths:
 
             assert clipping is not None
             assert max(clipping.points) == 50
+            assert clipping.fillMode == FILL_NON_ZERO
 
     def test_clipping_path_with_transform_url(self):
         clipping_paths = [
@@ -426,6 +428,39 @@ class TestPaths:
 
             assert clipping is not None
             assert max(clipping.points) == 50
+            assert clipping.fillMode == FILL_NON_ZERO
+
+    def test_clipping_path_fill_rule(self):
+        clipping_paths = [
+            '<rect fill-rule="evenodd" height="100" width="100" x="0" y="0"/>',
+            '<rect fill-rule="evenodd" height="100" width="100" x="0" y="0" rx="20" '
+            + 'ry="20"/>',
+            '<path fill-rule="evenodd" d="M 0 0 H 100 V 100 H 0 Z"/>',
+            '<circle fill-rule="evenodd" cx="50" cy="50" r="50"/>',
+            '<ellipse fill-rule="evenodd" cx="50" cy="50" rx="50" ry="50"/>',
+            '<polygon fill-rule="evenodd" points="0,100 50,25 50,75 100,0" />',
+        ]
+
+        for clipping_path in clipping_paths:
+            drawing = drawing_from_svg(f"""
+                <svg namespace="http://www.w3.org/XML/1998/namespace"
+                     xmlns="http://www.w3.org/2000/svg"
+                     xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1"
+                     viewBox="0 0 100 50" width="100" height="50">
+
+                    <defs>
+                        <clipPath id="clip-1">
+                            {clipping_path}
+                        </clipPath>
+                    </defs>
+                    <g clip-path="url(#clip-1)">
+                        <path fill="green" d="M 0 0 H 50 V 50 H 0 Z"/>
+                    </g>
+                </svg>
+            """)
+
+            clipping = self.find_clipping(drawing)
+            assert clipping.fillMode == FILL_EVEN_ODD
 
     @pytest.mark.skipif(not has_renderpm_backend(), reason="needs a renderPM backend")
     def test_clipping_path_with_transform_visual(self):
@@ -1349,6 +1384,47 @@ class TestSwitchNode:
         assert len(rects) == 1
         assert rects[0].fillColor.hexval() == "0x0000ff"
 
+    def test_switch_matches_system_language(self, monkeypatch):
+        """<switch> renders the first child whose systemLanguage matches the locale."""
+        for var in ("LC_ALL", "LC_CTYPE", "LANGUAGE"):
+            monkeypatch.delenv(var, raising=False)
+        monkeypatch.setenv("LANG", "de_DE.UTF-8")
+        drawing = drawing_from_svg(
+            """
+            <?xml version="1.0"?>
+            <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+                <switch>
+                    <rect systemLanguage="fr" width="100" height="100" fill="red"/>
+                    <rect systemLanguage="de" width="80" height="80" fill="green"/>
+                    <rect width="50" height="50" fill="blue"/>
+                </switch>
+            </svg>
+        """
+        )
+        rects = self._find_rects(drawing)
+        assert len(rects) == 1
+        assert rects[0].fillColor.hexval() == "0x008000"  # "de" matches "de_DE"
+
+    def test_switch_skips_nonmatching_system_language(self, monkeypatch):
+        """<switch> skips a non-matching systemLanguage and renders the fallback."""
+        for var in ("LC_ALL", "LC_CTYPE", "LANGUAGE"):
+            monkeypatch.delenv(var, raising=False)
+        monkeypatch.setenv("LANG", "en_US.UTF-8")
+        drawing = drawing_from_svg(
+            """
+            <?xml version="1.0"?>
+            <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+                <switch>
+                    <rect systemLanguage="fr" width="100" height="100" fill="red"/>
+                    <rect width="50" height="50" fill="blue"/>
+                </switch>
+            </svg>
+        """
+        )
+        rects = self._find_rects(drawing)
+        assert len(rects) == 1
+        assert rects[0].fillColor.hexval() == "0x0000ff"  # "fr" skipped, fallback used
+
 
 class TestSymbolNode:
     def test_symbol_unused(self):
@@ -1638,6 +1714,93 @@ class TestEmbedded:
         # No image as relative path in file-like input cannot be determined.
         assert drawing.contents[0].contents == []
 
+    def find_image_in_drawing(self, item):
+        if isinstance(item, Image):
+            return item
+
+        if isinstance(item, Group):
+            for child in item.contents:
+                result = self.find_image_in_drawing(child)
+                if result:
+                    return result
+
+        return None
+
+    def test_image_size_fallback_no_size(self):
+        # The embedded image is a 5px x 5px red square.
+        drawing = drawing_from_svg(
+            """
+            <?xml version="1.0"?>
+            <svg xmlns="http://www.w3.org/2000/svg"
+                 xmlns:xlink="http://www.w3.org/1999/xlink"
+                 viewBox="0,0,5,5" width="5" height="5" version="1.1">
+
+                <image id="image-1" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANS
+                UhEUgAAAAUAAAAFCAYAAACNbyblAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAGXRFWHRTb2Z0
+                d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAAABVJREFUCJlj/M/A8J8BDTChC1BBEADOqQI
+                IH8PejQAAAABJRU5ErkJggg=="/>
+            </svg>
+        """
+        )
+
+        image = self.find_image_in_drawing(drawing)
+
+        assert image is not None
+        assert image.width == 5
+        assert image.height == 5
+
+    def test_image_size_fallback_only_width(self):
+        """
+        The image size aspect ratio should be preserved. The image is 5px x 10px
+        and a width of 3px should scale the height to 6px.
+        """
+        drawing = drawing_from_svg(
+            """
+            <?xml version="1.0"?>
+            <svg xmlns="http://www.w3.org/2000/svg"
+                 xmlns:xlink="http://www.w3.org/1999/xlink"
+                 viewBox="0,0,5,5" width="5" height="5" version="1.1">
+
+                <image xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAA
+                AKCAYAAAB8OZQwAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAGXRFWHRTb2Z0d2FyZQB3d3cua
+                W5rc2NhcGUub3Jnm+48GgAAABVJREFUCJlj/M/A8J8BDTChCwwlQQCmdgISIETfOwAAAABJ
+                RU5ErkJggg==" width="3"/>
+            </svg>
+        """
+        )
+
+        image = self.find_image_in_drawing(drawing)
+
+        assert image is not None
+        assert image.width == 3
+        assert image.height == 6
+
+    def test_image_size_fallback_only_height(self):
+        """
+        The image size aspect ratio should be preserved. The image is 5px x 10px
+        and a height of 8px should scale the width to 4px.
+        """
+        drawing = drawing_from_svg(
+            """
+            <?xml version="1.0"?>
+            <svg xmlns="http://www.w3.org/2000/svg"
+                 xmlns:xlink="http://www.w3.org/1999/xlink"
+                 viewBox="0,0,5,5" width="5" height="5" version="1.1">
+
+                <image xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAA
+                AKCAYAAAB8OZQwAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAGXRFWHRTb2Z0d2FyZQB3d3cua
+                W5rc2NhcGUub3Jnm+48GgAAABVJREFUCJlj/M/A8J8BDTChCwwlQQCmdgISIETfOwAAAABJ
+                RU5ErkJggg==" height="8"/>
+            </svg>
+        """
+        )
+
+        image = self.find_image_in_drawing(drawing)
+
+        assert image is not None
+        assert image.width == 4
+        assert image.height == 8
+
 
 class TestGradients:
     """Tests for SVG linearGradient and radialGradient support."""
@@ -1675,6 +1838,10 @@ class TestGradients:
         groups = self._find_groups(drawing)
         # The rect's fill must have been replaced by a gradient group
         assert len(groups) > 1
+        # The gradient shape must implement getBounds() so the drawing can be
+        # measured (e.g. when used as a flowable by rst2pdf); see issue #466.
+        x0, y0, x1, y1 = drawing.getBounds()
+        assert x1 > x0 and y1 > y0
 
     def test_radial_gradient_circle(self):
         """A circle with a radialGradient fill must produce a Group."""
@@ -1695,6 +1862,9 @@ class TestGradients:
         )
         groups = self._find_groups(drawing)
         assert len(groups) > 1
+        # See issue #466: the gradient shape must implement getBounds().
+        x0, y0, x1, y1 = drawing.getBounds()
+        assert x1 > x0 and y1 > y0
 
     def test_gradient_stops_parsed(self):
         """Stop colors and offsets must be correctly stored in gradient_defs."""

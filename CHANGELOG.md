@@ -1,5 +1,64 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Declared support for **Python 3.14** (added the classifier and CI matrix
+  entry across Ubuntu, macOS, and Windows, alongside the existing 3.9–3.13).
+- **Clipping paths** now support `<circle>`, `<ellipse>`, and `<polygon>` clip
+  shapes, in addition to paths and rectangles, and clipping masks referenced
+  from within a `<use>` element.
+- Transforms are now applied to clipping-path shapes, fixing clip paths that
+  relied on previously unsupported transforms (issue #366).
+- The gradient shape classes now implement `getBounds()`, so drawings that
+  contain gradient fills can be measured — for example when used as a flowable
+  by rst2pdf (issue #466).
+
+### Changed
+
+- Renamed the gradient shape classes `_LinearGradientShape` and
+  `_RadialGradientShape` to `LinearGradientShape` and `RadialGradientShape`.
+  They appear in the rendered `Drawing` tree and were never meant to be
+  private, so the leading underscore was misleading. The old underscore-
+  prefixed names remain as deprecated aliases and will be **removed in 2.1.0**.
+
+### Fixed
+
+- Replaced `locale.getdefaultlocale()` (used for `<switch>` `systemLanguage`
+  matching) with a small environment-variable lookup. `getdefaultlocale()` is
+  deprecated and is **removed in Python 3.15**; the replacement keeps the same
+  behaviour, emits no deprecation warning on 3.12–3.14, and adds unit tests for
+  the language-matching path.
+
+### Type safety and internal quality (no behavior change)
+
+- Completed static type annotations for `svglib.py`; the package now passes
+  `mypy --strict` on its own source, with a single documented per-module
+  override for the untyped reportlab/cssselect2 base classes it subclasses.
+- Pinned a `[tool.mypy]` configuration in `pyproject.toml` and now enforce mypy
+  in CI (new `type-check.yml` workflow) and via a local pre-commit hook, so type
+  regressions fail before merge.
+- Tightened internal gradient handling types: parsed gradient definitions now
+  use a `TypedDict` instead of an opaque `Dict[str, Any]`, and the internal
+  group/parent parameters are typed as `Optional[Group]`.
+- Added docstrings to the remaining undocumented functions in `svglib.py`,
+  bringing documentation coverage to 100%.
+
+### Tooling and housekeeping
+
+- Removed the DeepSource configuration. Its checks were redundant with ruff,
+  `mypy --strict`, CodeQL, and the pytest matrix, and only produced recurring
+  noise on pull requests.
+- Removed the long-defunct `uniconv` sample tests. They contained no assertions
+  and shelled out to UniConvertor, an abandoned Python 2 tool, so they had been
+  permanently skipped.
+- Fixed and revived the Windows CI workflow. It was a disabled placeholder that
+  compiled GTK/Cairo from source (a ~20–40 minute step); it now runs a real
+  CPython 3.9/3.13 matrix in well under a minute by dropping the source build
+  and skipping the network-heavy sample tests on Windows (they already run on
+  Ubuntu and macOS). The redundant manual Windows workflow was removed.
+
 ## 2.0.2 (2026-06-18)
 
 Supply-chain hygiene release — no code changes.
