@@ -112,6 +112,7 @@ SVGSource = Union[str, os.PathLike[str], BinaryIO, TextIO]
 # because ReportLab ships no stubs.
 GradientStop = Tuple[float, Any]
 
+ALLOW_EXTERNAL_CONTENT = False
 
 class _GradientDefBase(TypedDict):
     """Keys always present on a parsed gradient definition."""
@@ -1601,7 +1602,7 @@ class SvgRenderer:
         else:
             iri, fragment = xlink_href, None
 
-        if iri:
+        if ALLOW_EXTERNAL_CONTENT and iri:
             # Only local relative paths are supported yet
             if not isinstance(self.source_path, str):
                 logger.error(
@@ -1619,7 +1620,7 @@ class SvgRenderer:
                 # Self-referencing, ignore the IRI part
                 iri = None
 
-        if iri:
+        if ALLOW_EXTERNAL_CONTENT and iri:
             if path.endswith(".svg"):
                 if path in self._parent_chain:
                     logger.error("Circular reference detected in file.")
